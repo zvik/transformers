@@ -18,6 +18,7 @@ This mostly describe the hooks used and the logic to make capture thread/context
 
 from __future__ import annotations
 
+import re
 import threading
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -46,12 +47,16 @@ class OutputRecorder:
         target_class (Type): The class (e.g., nn.Module) to which the hook will be attached.
         index (Optional[int]): If the output is a tuple/list, optionally record only at a specific index.
         layer_name (Optional[str]): Name of the submodule to target (if needed), e.g., "transformer.layer.3.attn".
+            Matched as a substring of the full module path.
+        layer_name_regex (Optional[str]): Regular expression to fully match the submodule path, e.g.,
+            ``".*\\.layers\\.\\d+\\.attn"``. Applied as an additional filter alongside `layer_name`.
         class_name (Optional[str]): Name of the class to which the hook will be attached. Could be the suffix of class name in some cases.
     """
 
     target_class: type[nn.Module]
     index: int = 0
     layer_name: str | None = None
+    layer_name_regex: str | None = None
     class_name: str | None = None
 
 
@@ -143,6 +148,8 @@ def recursively_install_hooks(
             specs.class_name is not None and module_name.endswith(specs.class_name)
         ):
             if specs.layer_name is not None and specs.layer_name not in module_name:
+                continue
+            if specs.layer_name_regex is not None and not re.fullmatch(specs.layer_name_regex, module_name):
                 continue
             install_output_capturing_hook(parent_module, key, specs.index)
 
